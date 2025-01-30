@@ -1,14 +1,35 @@
+import os
 import pandas as pd
 import numpy as np
 import pickle as pk
 import streamlit as st
 
-model = pk.load(open('modelo.pkl', 'rb'))
-carros = pd.read_csv('base_de_dados_carro.csv')
+# 🛠️ Garante que o caminho do modelo seja correto
+model_path = os.path.join(os.path.dirname(__file__), "modelo.pkl")
 
+# 🛠️ Verifica se o modelo existe antes de tentar carregar
+if not os.path.exists(model_path):
+    st.error("Erro: Arquivo 'modelo.pkl' não encontrado. Verifique o caminho do arquivo no deploy.")
+    st.stop()
+
+# 🔄 Carrega o modelo
+with open(model_path, "rb") as file:
+    model = pk.load(file)
+
+# 🛠️ Carregamento seguro do dataset
+data_path = os.path.join(os.path.dirname(__file__), "base_de_dados_carro.csv")
+
+if not os.path.exists(data_path):
+    st.error("Erro: Arquivo 'base_de_dados_carro.csv' não encontrado.")
+    st.stop()
+
+carros = pd.read_csv(data_path)
+
+# 🔧 Função para extrair a marca do carro
 def nome_marca(marca):
-    nome =  marca.split(' ')[0]
-    return nome.strip()
+    return marca.split(" ")[0].strip()
+
+# 🔄 Renomeando colunas para português
 colunas_traduzidas = {
     "name": "nome",
     "year": "ano",
@@ -21,54 +42,50 @@ colunas_traduzidas = {
     "mileage": "consumo",
     "engine": "motor",
     "max_power": "potencia_maxima",
-    "seats": "assentos"
+    "seats": "assentos",
 }
+
 carros = carros.rename(columns=colunas_traduzidas)
 carros["nome"] = carros["nome"].apply(nome_marca)
 
-st.header( 'Predição preços de carros')
-nome = st.selectbox('Marca', carros['nome'].unique())
-ano = st.slider('Ano', 2000,2024, value=2023)
-km_rodados =  st.slider('Kilometros Rodados', 11,200000, value=20000)
-combustivel = st.selectbox('combustivel',carros["combustivel"].unique())
-tipo_vendedor = st.selectbox('Tipo de Vendedor',carros["tipo_vendedor"].unique())
-proprietarios = st.selectbox('Qtd Proprietários',carros["proprietario"].unique())
-transmissao= st.selectbox('Transmissão',carros["transmissao"].unique())
+# 📌 Interface Streamlit
+st.header("Predição de Preços de Carros")
 
-consumo = st.slider('Consumo',11,40)
-motor = st.slider('Motor',700,5000)
-potencia_maxima = st.slider('Potência Máxima',0,200)
-assentos = st.slider('Assentos',5,10)
+# 🔽 Inputs do usuário
+nome = st.selectbox("Marca", carros["nome"].unique())
+ano = st.slider("Ano", 2000, 2024, value=2023)
+km_rodados = st.slider("Kilômetros Rodados", 11, 200000, value=20000)
+combustivel = st.selectbox("Combustível", carros["combustivel"].unique())
+tipo_vendedor = st.selectbox("Tipo de Vendedor", carros["tipo_vendedor"].unique())
+proprietarios = st.selectbox("Qtd Proprietários", carros["proprietario"].unique())
+transmissao = st.selectbox("Transmissão", carros["transmissao"].unique())
 
-if st.button('Prever'):
+consumo = st.slider("Consumo (km/L)", 11, 40)
+motor = st.slider("Motor (cc)", 700, 5000)
+potencia_maxima = st.slider("Potência Máxima (hp)", 0, 200)
+assentos = st.slider("Assentos", 2, 10)
+
+if st.button("Prever"):
     input_data = pd.DataFrame(
-            [[nome, ano, km_rodados, combustivel, tipo_vendedor, proprietarios, transmissao, consumo, motor, potencia_maxima, assentos]],
-            columns=['nome', 'ano', 'km_rodados', 'combustivel', 'tipo_vendedor', 'proprietario', 'transmissao', 'consumo', 'motor', 'potencia_maxima', 'assentos']
+        [[nome, ano, km_rodados, combustivel, tipo_vendedor, proprietarios, transmissao, consumo, motor, potencia_maxima, assentos]],
+        columns=["nome", "ano", "km_rodados", "combustivel", "tipo_vendedor", "proprietario", "transmissao", "consumo", "motor", "potencia_maxima", "assentos"],
     )
 
-    input_data['nome'].replace(['Maruti', 'Skoda', 'Honda', 'Hyundai', 'Toyota', 'Ford', 'Renault',
-       'Mahindra', 'Tata', 'Chevrolet', 'Datsun', 'Jeep', 'Mercedes-Benz',
-       'Mitsubishi', 'Audi', 'Volkswagen', 'BMW', 'Nissan', 'Lexus',
-       'Jaguar', 'Land', 'MG', 'Volvo', 'Daewoo', 'Kia', 'Fiat', 'Force',
-       'Ambassador', 'Ashok', 'Isuzu', 'Opel'],
-       [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,27,28,29,30,31],
-       inplace=True)
-    
-    input_data['transmissao'].replace(['Manual', 'Automatic'], [1,2], inplace=True)
-    input_data["proprietario"].replace(['First Owner', 'Second Owner', 'Third Owner',
-       'Fourth & Above Owner', 'Test Drive Car'], [1, 2, 3, 4, 5], inplace=True)
-    input_data["combustivel"].replace(['Diesel', 'Petrol', 'LPG', 'CNG'], [1, 2, 3, 4], inplace=True)
-    input_data["tipo_vendedor"].replace(['Individual', 'Dealer', 'Trustmark Dealer'], [1, 2, 3], inplace=True)
+    # 🔄 Substituição de valores categóricos por números
+    marca_mapping = {marca: i+1 for i, marca in enumerate(carros["nome"].unique())}
+    input_data["nome"] = input_data["nome"].map(marca_mapping)
 
-    # 🛠️ Ajusta a ordem das colunas para ser a mesma usada no treinamento do modelo
+    input_data["transmissao"].replace(["Manual", "Automatic"], [1, 2], inplace=True)
+    input_data["proprietario"].replace(["First Owner", "Second Owner", "Third Owner", "Fourth & Above Owner", "Test Drive Car"], [1, 2, 3, 4, 5], inplace=True)
+    input_data["combustivel"].replace(["Diesel", "Petrol", "LPG", "CNG"], [1, 2, 3, 4], inplace=True)
+    input_data["tipo_vendedor"].replace(["Individual", "Dealer", "Trustmark Dealer"], [1, 2, 3], inplace=True)
+
+    # 📌 Ajusta a ordem das colunas conforme o modelo
     input_data = input_data[model.feature_names_in_]
 
-    # 🛠️ Converte os dados para float, caso o modelo tenha sido treinado com esse tipo de dado
+    # 🛠️ Converte para float, se necessário
     input_data = input_data.astype(float)
 
-    st.write("Dados formatados para o modelo:")
-    st.write(input_data)
-
-    preco_do_carro = model.predict(input_data)
-    preco_do_carro_reais = preco_do_carro[0]
-    st.markdown(f'O preço do carro é: ${preco_do_carro_reais:.2f} dólares')
+    # 🔮 Predição
+    preco_do_carro = model.predict(input_data)[0]
+    st.markdown(f"💰 **Preço Estimado do Carro:** ${preco_do_carro:.2f} dólares")
